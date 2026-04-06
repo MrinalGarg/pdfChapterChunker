@@ -17,7 +17,7 @@ export default function Hero() {
       </div>
       <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Upload a PDF. Get a chapter-split ZIP.</h1>
       <p className="mt-3 text-base leading-relaxed text-white/90">
-        We detect chapter starts, split each chapter into readable chunks, and package everything into one ZIP download.
+        We detect chapter starts and export each chapter as one text file in a single ZIP download.
       </p>
       <div className="mt-5 flex items-center gap-2 text-base text-white/90">
         <FileText className="h-5 w-5" />

@@ -18,7 +18,6 @@ function parseBlobError(blob) {
 
 export default function App() {
   const [file, setFile] = useState(null);
-  const [chunkSize, setChunkSize] = useState(12000);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -38,7 +37,6 @@ export default function App() {
     try {
       const formData = new FormData();
       formData.append("pdf", file);
-      formData.append("chunkSize", String(chunkSize));
 
       const response = await axios.post("/api/chunk-pdf", formData, {
         responseType: "blob"
@@ -48,13 +46,13 @@ export default function App() {
       const url = window.URL.createObjectURL(zipBlob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${file.name.replace(/\.pdf$/i, "") || "document"}-chapter-chunks.zip`;
+      a.download = `${file.name.replace(/\.pdf$/i, "") || "document"}-chapters.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
 
-      setSuccess("Your ZIP was generated and downloaded.");
+      setSuccess("Your ZIP was generated with one file per chapter.");
     } catch (requestError) {
       if (requestError?.response?.data instanceof Blob) {
         const message = await parseBlobError(requestError.response.data);
@@ -81,8 +79,6 @@ export default function App() {
           <UploadForm
             file={file}
             setFile={setFile}
-            chunkSize={chunkSize}
-            setChunkSize={setChunkSize}
             loading={loading}
             onSubmit={handleSubmit}
           />
@@ -90,7 +86,7 @@ export default function App() {
           {loading ? (
             <p className="mt-4 flex items-center gap-2 text-base font-medium text-brand-700">
               <Loader2 className="h-5 w-5 animate-spin" />
-              Processing PDF and creating chapter chunks...
+              Processing PDF and creating chapter files...
             </p>
           ) : null}
 

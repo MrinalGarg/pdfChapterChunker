@@ -40,43 +40,6 @@ function detectChapterTitle(pageText) {
   return null;
 }
 
-function chunkText(content, maxChars) {
-  const cleaned = content.replace(/[ \t]+\n/g, "\n").trim();
-  if (!cleaned) return ["No extractable text found for this chapter."];
-  const paragraphs = cleaned.split(/\n{2,}/).map((line) => line.trim()).filter(Boolean);
-  const chunks = [];
-  let current = "";
-
-  for (const paragraph of paragraphs) {
-    if (paragraph.length > maxChars) {
-      if (current) {
-        chunks.push(current);
-        current = "";
-      }
-      for (let i = 0; i < paragraph.length; i += maxChars) {
-        chunks.push(paragraph.slice(i, i + maxChars));
-      }
-      continue;
-    }
-
-    if (!current) {
-      current = paragraph;
-      continue;
-    }
-
-    const candidate = `${current}\n\n${paragraph}`;
-    if (candidate.length > maxChars) {
-      chunks.push(current);
-      current = paragraph;
-    } else {
-      current = candidate;
-    }
-  }
-
-  if (current) chunks.push(current);
-  return chunks.length ? chunks : ["No extractable text found for this chapter."];
-}
-
 async function extractPages(pdfBuffer) {
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
   const pdf = await loadingTask.promise;
@@ -137,7 +100,7 @@ function splitIntoChapters(pages) {
   return chapters;
 }
 
-async function buildZip(chapters, chunkSize) {
+async function buildZip(chapters) {
   const archive = archiver("zip", { zlib: { level: 9 } });
   const stream = new PassThrough();
   const chunks = [];
@@ -153,15 +116,11 @@ async function buildZip(chapters, chunkSize) {
   const manifest = [];
 
   chapters.forEach((chapter, chapterIndex) => {
-    const chapterChunks = chunkText(chapter.text, chunkSize);
-    const chapterDir = `${String(chapterIndex + 1).padStart(2, "0")}-${safeName(chapter.title)}`;
-    manifest.push(`${chapter.title}: ${chapterChunks.length} chunks`);
-
-    chapterChunks.forEach((chunk, chunkIndex) => {
-      const fileName = `${chapterDir}/chunk-${String(chunkIndex + 1).padStart(3, "0")}.txt`;
-      const content = `${chapter.title}\nChunk ${chunkIndex + 1}/${chapterChunks.length}\n\n${chunk}`;
-      archive.append(content, { name: fileName });
-    });
+    const chapterText = chapter.text.trim() || "No extractable text found for this chapter.";
+    const fileName = `${String(chapterIndex + 1).padStart(2, "0")}-${safeName(chapter.title)}.txt`;
+    const content = `${chapter.title}\n\n${chapterText}`;
+    manifest.push(`${fileName}: 1 chapter file`);
+    archive.append(content, { name: fileName });
   });
 
   archive.append(manifest.join("\n"), { name: "manifest.txt" });
@@ -186,22 +145,17 @@ app.post("/api/chunk-pdf", upload.single("pdf"), async (req, res) => {
       return res.status(400).json({ error: "Only PDF files are supported." });
     }
 
-    const parsedChunkSize = Number.parseInt(req.body.chunkSize, 10);
-    const chunkSize = Number.isFinite(parsedChunkSize)
-      ? Math.min(Math.max(parsedChunkSize, 1500), 50000)
-      : 12000;
-
     const pages = await extractPages(req.file.buffer);
     if (!pages.length) {
       return res.status(400).json({ error: "No extractable pages were found in that PDF." });
     }
 
     const chapters = splitIntoChapters(pages);
-    const zip = await buildZip(chapters, chunkSize);
+    const zip = await buildZip(chapters);
     const baseName = path.parse(req.file.originalname).name || "document";
 
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="${safeName(baseName)}-chapter-chunks.zip"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName(baseName)}-chapters.zip"`);
     return res.send(zip);
   } catch (error) {
     console.error("PDF chunking failed:", error);
